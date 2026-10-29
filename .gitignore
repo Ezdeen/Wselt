@@ -1,0 +1,30 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android / iOS generated files
+android/local.properties
+android/key.properties
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/Flutter/Flutter.podspec
+ios/Pods/
+ios/Podfile.lock
+
+# Firebase / secrets
+**/service-account.json
+**/*.p8
+**/*.jks
+**/*.keystore
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+*.iml
+
+# Nested project repository kept outside the parent repo
+Wselt/
