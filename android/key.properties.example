@@ -1,7 +1,8 @@
-storeFile=../release-keystore.jks
+storeFile=upload-keystore.jks
 storePassword=YOUR_STORE_PASSWORD
 keyAlias=YOUR_KEY_ALIAS
 keyPassword=YOUR_KEY_PASSWORD
 
 # انسخ هذا الملف إلى android/key.properties ثم ضع بيانات توقيع النشر الحقيقية.
+# يجب أن يوجد upload-keystore.jks داخل android/app/.
 # لا تضع هذا الملف في Git أو المرفقات العامة.

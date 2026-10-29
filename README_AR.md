@@ -1,7 +1,7 @@
 # تطبيق Future Roots — الحزمة الكاملة (أندرويد + iOS)
 
-اسم الحزمة المستخدم في كل مكان: **com.futureroots.webview**
-(مضبوط جاهزاً في `android/app/build.gradle`. سجّله كما هو في Firebase.)
+اسم الحزمة المستخدم في كل مكان: **com.mycompany.wasalt**
+(مضبوط جاهزاً في `android/app/build.gradle` و`google-services.json`. سجّله كما هو في Firebase.)
 
 ## الخطوات على FlutLab (للمبتدئ)
 
@@ -10,7 +10,7 @@
 3. ارفع **محتويات** هذه الحزمة بعد فك الضغط (وليس المجلد الخارجي): `pubspec.yaml` و`lib` و`android`.
    يجب أن ترى `pubspec.yaml` و`lib` و`android` مباشرة في جذر المشروع.
 4. أنشئ مشروع Firebase: console.firebase.google.com ← Add project ← أيقونة Android.
-   في **Android package name** اكتب: `com.futureroots.webview` ← Register app ← حمّل `google-services.json`.
+   في **Android package name** اكتب: `com.mycompany.wasalt` ← Register app ← حمّل `google-services.json`.
 5. ارفع `google-services.json` إلى **`android/app/`** (بجانب `build.gradle`).
 6. افتح `pubspec.yaml` واضغط **Pub get**.
 7. اضغط **Build APK** أو **Run**.
@@ -46,6 +46,6 @@ if (window.FlutterApp) FlutterApp.postMessage('getToken');
 | الخطأ | الحل |
 |---|---|
 | `google-services.json is missing` | الملف ليس في `android/app/` |
-| `No matching client found for package name` | سجّلت اسماً غير `com.futureroots.webview` في Firebase |
+| `No matching client found for package name` | سجّلت اسماً غير `com.mycompany.wasalt` في Firebase |
 | `flutter.sdk not set in local.properties` | اضغط Pub get أو شغّل Build مرة؛ FlutLab ينشئ الملف تلقائياً |
 | خطأ إصدار Gradle/Kotlin/AGP | الصق لي الخطأ كاملاً وأعدّل الإصدارات (الحالي: AGP 8.9.1، Gradle 8.11.1، Kotlin 2.1.0) |
