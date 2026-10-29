@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "558736909172",
+    "project_id": "wasalt-e5993",
+    "storage_bucket": "wasalt-e5993.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:558736909172:android:0b0e7e217adebd19754221",
+        "android_client_info": {
+          "package_name": "com.mycompany.wasalt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqpyjQDh8eThFKIrUOjo4mi9_VSlKePkk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
