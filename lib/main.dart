@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -18,6 +19,14 @@ const Set<String> kAllowedDomains = {
 };
 const String kAppTitle = 'Future Roots';
 const String kTopic = 'all'; // اشتراك تلقائي لإرسال إشعار لكل المستخدمين
+const AndroidNotificationChannel kHighImportanceChannel = AndroidNotificationChannel(
+  'high_importance_channel',
+  'High Importance Notifications',
+  description: 'This channel is used for important notifications.',
+  importance: Importance.max,
+);
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 // ===================================================================
 
 /// معالج الإشعارات عندما يكون التطبيق في الخلفية أو مغلقاً.
@@ -27,9 +36,64 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
+Future<void> _initLocalNotifications() async {
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initSettings =
+      InitializationSettings(android: androidSettings);
+
+  await flutterLocalNotificationsPlugin.initialize(
+    initSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      final payload = response.payload;
+      if (payload == null || payload.isEmpty) return;
+      final uri = Uri.tryParse(payload);
+      if (uri != null && uri.hasScheme) {
+        launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    },
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(kHighImportanceChannel);
+}
+
+Future<void> _showForegroundNotification(RemoteMessage message) async {
+  final title = message.notification?.title ?? kAppTitle;
+  final body = message.notification?.body ?? 'لديك إشعار جديد';
+  final payload = message.data['url'] ?? '';
+
+  await flutterLocalNotificationsPlugin.show(
+    message.messageId.hashCode,
+    title,
+    body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        kHighImportanceChannel.id,
+        kHighImportanceChannel.name,
+        channelDescription: kHighImportanceChannel.description,
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        ticker: 'ticker',
+      ),
+    ),
+    payload: payload,
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await _initLocalNotifications();
+  FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   runApp(const MyApp());
 }
@@ -185,7 +249,10 @@ class _WebShellState extends State<WebShell> {
       await messaging.subscribeToTopic(kTopic);
 
       // التطبيق مفتوح (Foreground)
-      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+      FirebaseMessaging.onMessage.listen((message) {
+        _showForegroundNotification(message);
+        _onForegroundMessage(message);
+      });
 
       // المستخدم ضغط على الإشعار والتطبيق في الخلفية
       FirebaseMessaging.onMessageOpenedApp.listen(_openFromMessage);
