@@ -52,26 +52,17 @@ jobs:
       - name: Clean previous build
         run: flutter clean
 
-      - name: Build optimized APKs
+      - name: Build optimized APK for testing
         run: flutter build apk --release --split-per-abi
-
-      - name: Build App Bundle
-        run: flutter build appbundle --release
 
       - name: Verify APK files
         shell: bash
         run: |
           ls -R build/app/outputs
-          find build/app/outputs -type f \( -name '*.apk' -o -name '*.aab' \) | sort
+          find build/app/outputs -type f -name '*.apk' | sort
 
-      - name: Upload split APK artifacts
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: android-split-apks
+          name: android-test-apks
           path: build/app/outputs/flutter-apk/*.apk
-
-      - name: Upload App Bundle artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: android-app-bundle
-          path: build/app/outputs/bundle/release/*.aab
