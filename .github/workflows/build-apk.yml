@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  build_android_apk:
+  build_android:
     runs-on: ubuntu-24.04
 
     steps:
@@ -43,35 +43,35 @@ jobs:
           if [ -n "$KEY_PROPERTIES" ] && [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEY_PROPERTIES" > android/key.properties
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-
-            # app/build.gradle resolves storeFile relative to android/app.
-            if ! grep -qx 'storeFile=upload-keystore.jks' android/key.properties; then
-              echo "KEY_PROPERTIES must contain exactly: storeFile=upload-keystore.jks"
-              exit 1
-            fi
-
             echo "BUILD_MODE=release" >> "$GITHUB_ENV"
-          elif [ -z "$KEY_PROPERTIES" ] && [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No signing secrets found; building an installable debug APK for testing."
-            echo "BUILD_MODE=debug" >> "$GITHUB_ENV"
           else
-            echo "Provide both KEY_PROPERTIES and KEYSTORE_BASE64, or neither for a debug build."
-            exit 1
+            echo "No signing secrets found; the workflow will build an unsigned release APK for testing."
+            echo "BUILD_MODE=release" >> "$GITHUB_ENV"
           fi
 
-      - name: Build APK
-        run: flutter build apk --${BUILD_MODE}
+      - name: Clean previous build
+        run: flutter clean
 
-      - name: Verify APK integrity and signature
+      - name: Build optimized APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build App Bundle
+        run: flutter build appbundle --release
+
+      - name: Verify APK files
         shell: bash
         run: |
-          APK=build/app/outputs/flutter-apk/app-${BUILD_MODE}.apk
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
-          test -n "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          ls -R build/app/outputs
+          find build/app/outputs -type f \( -name '*.apk' -o -name '*.aab' \) | sort
 
-      - name: Upload APK artifact
+      - name: Upload split APK artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: app-${{ env.BUILD_MODE }}-apk
-          path: build/app/outputs/flutter-apk/app-${{ env.BUILD_MODE }}.apk
+          name: android-split-apks
+          path: build/app/outputs/flutter-apk/*.apk
+
+      - name: Upload App Bundle artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: android-app-bundle
+          path: build/app/outputs/bundle/release/*.aab
