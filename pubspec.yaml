@@ -1,5 +1,5 @@
 name: futureroots_app
-description: تطبيق WebView لموقع Future Roots مع إشعارات Firebase FCM
+description: تطبيق وصلت - تطبيق WebView مع إشعارات Firebase FCM
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -25,10 +25,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/logo_mark.png
 
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/logo.png"
-  adaptive_icon_background: "#1C9D6A"
-  adaptive_icon_foreground: "assets/logo.png"
+  image_path: "assets/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/app_icon_foreground.png"

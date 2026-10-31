@@ -1,4 +1,4 @@
-# تطبيق Future Roots — الحزمة الكاملة (أندرويد + iOS)
+# تطبيق وصلت — الحزمة الكاملة (أندرويد + iOS)
 
 اسم الحزمة المستخدم في كل مكان: **com.mycompany.wasalt**
 (مضبوط جاهزاً في `android/app/build.gradle` و`google-services.json`. سجّله كما هو في Firebase.)
@@ -49,3 +49,9 @@ if (window.FlutterApp) FlutterApp.postMessage('getToken');
 | `No matching client found for package name` | سجّلت اسماً غير `com.mycompany.wasalt` في Firebase |
 | `flutter.sdk not set in local.properties` | اضغط Pub get أو شغّل Build مرة؛ FlutLab ينشئ الملف تلقائياً |
 | خطأ إصدار Gradle/Kotlin/AGP | الصق لي الخطأ كاملاً وأعدّل الإصدارات (الحالي: AGP 8.9.1، Gradle 8.11.1، Kotlin 2.1.0) |
+
+## الإشعارات العاجلة (تظهر فوق أي تطبيق آخر)
+- القناة العاجلة معرّفها `wasalt_urgent_v2` (أهمية Max). يجب أن يتطابق المعرّف في: `lib/main.dart` و`AndroidManifest.xml` و`server/send_fcm.php`.
+- أي إشعار يرسله السيرفر عبر `sendFcm()` يصل عاجلاً افتراضياً. للإشعارات العادية مرّر `['urgent' => false]`.
+- أهمية القناة لا تتغير بعد إنشائها على جهاز المستخدم؛ لذلك استُبدل المعرّف القديم `high_importance_channel` بمعرّف جديد. إن غيّرت الأهمية مستقبلاً فغيّر رقم الإصدار في المعرّف (`v3`).
+- لتجربة الظهور المنبثق: أغلق الشاشة/افتح تطبيقاً آخر ثم أرسل إشعاراً. يتطلب أن يكون "الإشعارات المنبثقة/Floating" مفعّلاً لتطبيق وصلت في إعدادات الجهاز، وألا يكون وضع "عدم الإزعاج" فعّالاً.

@@ -17,72 +17,135 @@ const Set<String> kAllowedDomains = {
   'app.futureroots.site',
   'www.futureroots.site',
 };
-const String kAppTitle = 'Future Roots';
+
+/// الاسم الظاهر للمستخدم (شريط المهام + عنوان الإشعار الافتراضي)
+const String kAppTitle = 'تطبيق وصلت';
+const Color kBrandColor = Color(0xFF6A2C91);
 const String kTopic = 'all'; // اشتراك تلقائي لإرسال إشعار لكل المستخدمين
-const AndroidNotificationChannel kHighImportanceChannel = AndroidNotificationChannel(
-  'high_importance_channel',
-  'High Importance Notifications',
-  description: 'This channel is used for important notifications.',
+
+/// قناة الإشعارات العاجلة.
+/// مهم: أهمية القناة في أندرويد لا يمكن تغييرها بعد إنشائها، لذلك استُخدم معرّف
+/// جديد (v2). يجب أن يطابق المعرّف في AndroidManifest.xml و server/send_fcm.php.
+const String kUrgentChannelId = 'wasalt_urgent_v2';
+const String kNotificationIcon = 'ic_stat_wasalt';
+const AndroidNotificationChannel kUrgentChannel = AndroidNotificationChannel(
+  kUrgentChannelId,
+  'إشعارات وصلت العاجلة',
+  description: 'إشعارات مهمة تظهر فوراً أمام المستخدم حتى لو كان داخل تطبيق آخر.',
   importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+  enableLights: true,
+  showBadge: true,
 );
+
+/// قناة الإشعارات العادية (تصل بصمت نسبي بدون ظهور منبثق) — للإشعارات غير المستعجلة.
+const String kNormalChannelId = 'wasalt_normal_v1';
+const AndroidNotificationChannel kNormalChannel = AndroidNotificationChannel(
+  kNormalChannelId,
+  'إشعارات وصلت العامة',
+  description: 'إشعارات عامة وتنبيهات غير مستعجلة.',
+  importance: Importance.defaultImportance,
+);
+
+/// القناة القديمة التي كانت تُنشأ في الإصدارات السابقة (تُحذف تلقائياً).
+const String kLegacyChannelId = 'high_importance_channel';
+
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+
+/// رابط ينتظر الفتح داخل الـ WebView (عند الضغط على إشعار محلي).
+final ValueNotifier<String?> kPendingUrl = ValueNotifier<String?>(null);
 // ===================================================================
 
-/// معالج الإشعارات عندما يكون التطبيق في الخلفية أو مغلقاً.
-/// إشعارات (notification) يعرضها النظام تلقائياً، وهذه الدالة للتعامل مع رسائل data فقط.
+void _handleNotificationTap(String? payload) {
+  if (payload == null || payload.isEmpty) return;
+  kPendingUrl.value = null; // لضمان إطلاق الحدث حتى لو تكرر نفس الرابط
+  kPendingUrl.value = payload;
+}
+
+NotificationDetails _urgentDetails(String body) {
+  return NotificationDetails(
+    android: AndroidNotificationDetails(
+      kUrgentChannel.id,
+      kUrgentChannel.name,
+      channelDescription: kUrgentChannel.description,
+      importance: Importance.max,
+      priority: Priority.max,
+      category: AndroidNotificationCategory.message,
+      visibility: NotificationVisibility.public,
+      playSound: true,
+      enableVibration: true,
+      icon: kNotificationIcon,
+      color: kBrandColor,
+      // يعرض النص الكامل عند توسيع الإشعار بدل اقتطاعه
+      styleInformation: BigTextStyleInformation(body),
+    ),
+  );
+}
+
+/// معالج الرسائل عندما يكون التطبيق في الخلفية أو مغلقاً.
+/// - رسائل (notification): يعرضها النظام تلقائياً على القناة العاجلة
+///   (المحددة في الـ payload من السيرفر وفي AndroidManifest).
+/// - رسائل (data فقط) تحتوي title/body: نعرضها نحن هنا بنفس القناة العاجلة.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  if (message.notification != null) return;
+
+  final title = message.data['title'] as String?;
+  final body = message.data['body'] as String?;
+  if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
+    return;
+  }
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  await plugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings(kNotificationIcon),
+    ),
+  );
+  await plugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(kUrgentChannel);
+
+  await plugin.show(
+    message.messageId.hashCode,
+    title ?? kAppTitle,
+    body ?? '',
+    _urgentDetails(body ?? ''),
+    payload: message.data['url'] as String? ?? '',
+  );
 }
 
 Future<void> _initLocalNotifications() async {
   const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings(kNotificationIcon);
   const InitializationSettings initSettings =
       InitializationSettings(android: androidSettings);
 
   await flutterLocalNotificationsPlugin.initialize(
     initSettings,
+    // الضغط على الإشعار المحلي يفتح الصفحة داخل التطبيق (وليس المتصفح الخارجي)
     onDidReceiveNotificationResponse: (NotificationResponse response) {
-      final payload = response.payload;
-      if (payload == null || payload.isEmpty) return;
-      final uri = Uri.tryParse(payload);
-      if (uri != null && uri.hasScheme) {
-        launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+      _handleNotificationTap(response.payload);
     },
   );
 
-  await flutterLocalNotificationsPlugin
+  final android = flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(kHighImportanceChannel);
-}
+          AndroidFlutterLocalNotificationsPlugin>();
+  await android?.deleteNotificationChannel(kLegacyChannelId);
+  await android?.createNotificationChannel(kUrgentChannel);
+  await android?.createNotificationChannel(kNormalChannel);
 
-Future<void> _showForegroundNotification(RemoteMessage message) async {
-  final title = message.notification?.title ?? kAppTitle;
-  final body = message.notification?.body ?? 'لديك إشعار جديد';
-  final payload = message.data['url'] ?? '';
-
-  await flutterLocalNotificationsPlugin.show(
-    message.messageId.hashCode,
-    title,
-    body,
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        kHighImportanceChannel.id,
-        kHighImportanceChannel.name,
-        channelDescription: kHighImportanceChannel.description,
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-        enableVibration: true,
-        ticker: 'ticker',
-      ),
-    ),
-    payload: payload,
-  );
+  // التطبيق كان مغلقاً وفُتح بالضغط على إشعار محلي
+  final launch =
+      await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+  if (launch?.didNotificationLaunchApp ?? false) {
+    _handleNotificationTap(launch!.notificationResponse?.payload);
+  }
 }
 
 Future<void> main() async {
@@ -106,7 +169,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: kAppTitle,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.green),
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: kBrandColor),
+      // واجهة التطبيق عربية: اتجاه من اليمين لليسار
+      builder: (context, child) =>
+          Directionality(textDirection: TextDirection.rtl, child: child!),
       home: const WebShell(),
     );
   }
@@ -124,6 +190,7 @@ class _WebShellState extends State<WebShell> {
   String? _fcmToken;
   int _progress = 0;
   bool _hasError = false;
+  bool _firstLoadDone = false;
   DateTime? _lastBackPress;
 
   @override
@@ -131,6 +198,22 @@ class _WebShellState extends State<WebShell> {
     super.initState();
     _initWebView();
     _initFirebase();
+    kPendingUrl.addListener(_onPendingUrl);
+    // رابط وصل قبل بناء الواجهة (فتح التطبيق من إشعار محلي)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onPendingUrl());
+  }
+
+  @override
+  void dispose() {
+    kPendingUrl.removeListener(_onPendingUrl);
+    super.dispose();
+  }
+
+  void _onPendingUrl() {
+    final url = kPendingUrl.value;
+    if (url == null || url.isEmpty) return;
+    kPendingUrl.value = null;
+    _openUrl(url);
   }
 
   bool _isInternalHost(String host) {
@@ -140,6 +223,16 @@ class _WebShellState extends State<WebShell> {
           (domain) =>
               normalizedHost == domain || normalizedHost.endsWith('.$domain'),
         );
+  }
+
+  /// يفتح رابطاً داخل الـ WebView (مسموح فقط لنطاقات الموقع، ويدعم المسارات النسبية).
+  void _openUrl(String url) {
+    final parsed = Uri.tryParse(url);
+    if (parsed == null) return;
+    final uri = parsed.hasScheme ? parsed : Uri.parse(kStartUrl).resolveUri(parsed);
+    if (uri.scheme == 'https' && _isInternalHost(uri.host)) {
+      _controller.loadRequest(uri);
+    }
   }
 
   // ------------------------------ WebView ------------------------------
@@ -162,10 +255,18 @@ class _WebShellState extends State<WebShell> {
           onPageStarted: (_) {
             if (mounted) setState(() => _hasError = false);
           },
-          onPageFinished: (_) => _sendTokenToPage(),
+          onPageFinished: (_) {
+            if (mounted && !_firstLoadDone) {
+              setState(() => _firstLoadDone = true);
+            }
+            _sendTokenToPage();
+          },
           onWebResourceError: (e) {
             if ((e.isForMainFrame ?? true) && mounted) {
-              setState(() => _hasError = true);
+              setState(() {
+                _hasError = true;
+                _firstLoadDone = true;
+              });
             }
           },
           onNavigationRequest: (req) async {
@@ -248,11 +349,9 @@ class _WebShellState extends State<WebShell> {
 
       await messaging.subscribeToTopic(kTopic);
 
-      // التطبيق مفتوح (Foreground)
-      FirebaseMessaging.onMessage.listen((message) {
-        _showForegroundNotification(message);
-        _onForegroundMessage(message);
-      });
+      // التطبيق مفتوح (Foreground): يظهر شريط داخل التطبيق.
+      // (لا نُنشئ إشعار نظام إضافي حتى لا يتكرر نفس الإشعار مرتين)
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
       // المستخدم ضغط على الإشعار والتطبيق في الخلفية
       FirebaseMessaging.onMessageOpenedApp.listen(_openFromMessage);
@@ -268,21 +367,19 @@ class _WebShellState extends State<WebShell> {
   void _openFromMessage(RemoteMessage m) {
     final url = m.data['url'] as String?;
     if (url == null || url.isEmpty) return;
-    final uri = Uri.tryParse(url);
-    if (uri != null && uri.hasScheme && _isInternalHost(uri.host)) {
-      _controller.loadRequest(uri);
-    }
+    _openUrl(url);
   }
 
   void _onForegroundMessage(RemoteMessage m) {
     if (!mounted) return;
-    final title = m.notification?.title ?? kAppTitle;
-    final body = m.notification?.body ?? '';
+    final title = m.notification?.title ?? (m.data['title'] as String?) ?? kAppTitle;
+    final body = m.notification?.body ?? (m.data['body'] as String?) ?? '';
+    final hasUrl = ((m.data['url'] as String?) ?? '').isNotEmpty;
     final messenger = ScaffoldMessenger.of(context);
     messenger.clearMaterialBanners();
     messenger.showMaterialBanner(
       MaterialBanner(
-        leading: const Icon(Icons.notifications_active),
+        leading: const Icon(Icons.notifications_active, color: kBrandColor),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,13 +389,14 @@ class _WebShellState extends State<WebShell> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              messenger.hideCurrentMaterialBanner();
-              _openFromMessage(m);
-            },
-            child: const Text('فتح'),
-          ),
+          if (hasUrl)
+            TextButton(
+              onPressed: () {
+                messenger.hideCurrentMaterialBanner();
+                _openFromMessage(m);
+              },
+              child: const Text('فتح'),
+            ),
           TextButton(
             onPressed: messenger.hideCurrentMaterialBanner,
             child: const Text('إغلاق'),
@@ -347,12 +445,46 @@ class _WebShellState extends State<WebShell> {
           child: Stack(
             children: [
               WebViewWidget(controller: _controller),
-              if (_progress < 100 && !_hasError)
-                LinearProgressIndicator(value: _progress / 100.0),
+              if (_firstLoadDone && _progress < 100 && !_hasError)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(
+                    value: _progress / 100.0,
+                    color: kBrandColor,
+                    minHeight: 3,
+                  ),
+                ),
+              // شاشة تحميل أولى بشعار التطبيق بدل الشاشة البيضاء
+              if (!_firstLoadDone)
+                Container(
+                  color: Colors.white,
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset('assets/logo_mark.png', width: 140),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: 120,
+                        child: LinearProgressIndicator(
+                          value: _progress > 0 ? _progress / 100.0 : null,
+                          color: kBrandColor,
+                          backgroundColor: kBrandColor.withOpacity(0.12),
+                          minHeight: 3,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (_hasError)
                 Container(
                   color: Colors.white,
                   width: double.infinity,
+                  height: double.infinity,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
