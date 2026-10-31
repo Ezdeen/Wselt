@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -237,7 +238,10 @@ class _WebShellState extends State<WebShell> {
 
   // ------------------------------ WebView ------------------------------
   void _initWebView() {
-    _controller = WebViewController()
+    _controller = WebViewController(
+      // الصفحة تطلب الكاميرا/المايك (getUserMedia) — نطلب إذن النظام ثم نمنحه للصفحة
+      onPermissionRequest: _onWebPermissionRequest,
+    )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.white)
       // يمكن للموقع طلب التوكن عبر: FlutterApp.postMessage('getToken')
@@ -293,6 +297,39 @@ class _WebShellState extends State<WebShell> {
     final platform = _controller.platform;
     if (platform is WebKitWebViewController) {
       platform.setAllowsBackForwardNavigationGestures(true);
+    }
+  }
+
+  /// يعالج طلب الصفحة للكاميرا (مسح QR) أو المايكروفون.
+  Future<void> _onWebPermissionRequest(WebViewPermissionRequest request) async {
+    final needed = <Permission>[];
+    for (final t in request.types) {
+      if (t == WebViewPermissionResourceType.camera) needed.add(Permission.camera);
+      if (t == WebViewPermissionResourceType.microphone) {
+        needed.add(Permission.microphone);
+      }
+    }
+    if (needed.isEmpty) {
+      await request.deny();
+      return;
+    }
+
+    final results = await needed.request();
+    final allGranted = results.values.every((s) => s.isGranted);
+    if (allGranted) {
+      await request.grant();
+      return;
+    }
+
+    await request.deny();
+    final permanentlyDenied = results.values.any((s) => s.isPermanentlyDenied);
+    if (permanentlyDenied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('الكاميرا غير مسموحة. فعّلها من إعدادات التطبيق.'),
+          action: SnackBarAction(label: 'الإعدادات', onPressed: openAppSettings),
+        ),
+      );
     }
   }
 
